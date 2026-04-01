@@ -1,0 +1,213 @@
+[
+    {
+        "name": "Dashboard",
+        "url": "\/admin",
+        "icon": "home",
+        "can": "view_dashboard",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "QUẢN LÝ BÁN HÀNG",
+        "url": null,
+        "icon": null,
+        "can": null,
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Nhân viên (Staff)",
+        "url": "\/admin\/system\/staff",
+        "icon": null,
+        "can": "view_staff",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Sản phẩm",
+        "url": null,
+        "icon": "shopping-bag",
+        "can": "view_product",
+        "is_active": true,
+        "children": [
+            {
+                "name": "Tất cả sản phẩm",
+                "url": "\/admin\/products",
+                "icon": null,
+                "can": "view_product",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Danh mục",
+                "url": "\/admin\/product-categories",
+                "icon": null,
+                "can": "view_category",
+                "is_active": true,
+                "children": []
+            }
+        ]
+    },
+    {
+        "name": "Đơn hàng",
+        "url": "\/admin\/orders",
+        "icon": "shopping-cart",
+        "can": "view_order",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Tiếp thị liên kết",
+        "url": "\/admin\/affiliate",
+        "icon": "affiliate",
+        "can": "",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Mã giảm giá",
+        "url": "\/admin\/coupons",
+        "icon": "ticket",
+        "can": "view_coupon",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Khách hàng",
+        "url": "\/admin\/customers",
+        "icon": "users",
+        "can": "view_customer",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Quản lý Chat",
+        "url": "\/admin\/chat",
+        "icon": "users",
+        "can": "view_customer",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "MARKETING & NỘI DUNG",
+        "url": null,
+        "icon": null,
+        "can": null,
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Bài viết (Blog)",
+        "url": "\/admin\/posts",
+        "icon": "document-text",
+        "can": "view_post",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "HỆ THỐNG",
+        "url": null,
+        "icon": null,
+        "can": null,
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Phân quyền & Nhân sự",
+        "url": null,
+        "icon": "shield-check",
+        "can": "view_staff",
+        "is_active": true,
+        "children": [
+            {
+                "name": "Vai trò (Roles)",
+                "url": "\/admin\/system\/roles",
+                "icon": null,
+                "can": "view_role",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Nhân viên (Staff)",
+                "url": "\/admin\/system\/staff",
+                "icon": null,
+                "can": "view_staff",
+                "is_active": true,
+                "children": []
+            }
+        ]
+    },
+    {
+        "name": "Cấu hình Menu",
+        "url": "\/admin\/menus",
+        "icon": "menu",
+        "can": "view_setting",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Thiết lập Website",
+        "url": null,
+        "icon": "shield-check",
+        "can": "view_staff",
+        "is_active": true,
+        "children": [
+            {
+                "name": "Thiết lập bố cục",
+                "url": "\/admin\/homepage-settings",
+                "icon": null,
+                "can": "view_role",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Thiết lập Banner",
+                "url": "\/admin\/banners",
+                "icon": null,
+                "can": "view_staff",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Thiết lập Header",
+                "url": "\/admin\/header-settings",
+                "icon": null,
+                "can": "view_role",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Thiết lập Footer",
+                "url": "\/admin\/footer-settings",
+                "icon": null,
+                "can": "view_role",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Thiết lập Khuyến Mãi",
+                "url": "\/admin\/flash-sales",
+                "icon": null,
+                "can": "view_staff",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Cấu hình chung",
+                "url": "\/admin\/settings",
+                "icon": "cog",
+                "can": "view_setting",
+                "is_active": true,
+                "children": []
+            }
+        ]
+    },
+    {
+        "name": "Quản lý Database",
+        "url": "\/admin\/database",
+        "icon": "cog",
+        "can": "view_setting",
+        "is_active": true,
+        "children": []
+    }
+]
