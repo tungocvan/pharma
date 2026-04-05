@@ -105,11 +105,11 @@ public function storePermission()
     $name = strtolower(trim($this->module));
 
     $permissionsArray = [
-        "{$name}-list",
-        "{$name}-create",
-        "{$name}-edit",
-        "{$name}-delete",
-    ];
+        'view_'.$name,
+        'create_'.$name,
+        'edit_'.$name,
+        'delete_'.$name,
+     ];
 
     foreach ($permissionsArray as $permissionName) {
         // ✅ Dùng firstOrCreate để tránh lỗi trùng unique

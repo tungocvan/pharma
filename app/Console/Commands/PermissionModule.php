@@ -33,10 +33,10 @@ class PermissionModule extends Command
             $this->info("module $name đã được phân quyền");
         }else{
             $permissionsArray = [
-                $name.'-list',
-                $name.'-create',
-                $name.'-edit',
-                $name.'-delete',
+                'view_'.$name,
+                'create_'.$name,
+                'edit_'.$name,
+                'delete_'.$name,
              ];
             foreach ($permissionsArray as $permission) {
                 Permission::create(['name' => $permission]);
