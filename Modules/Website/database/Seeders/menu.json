@@ -8,6 +8,63 @@
         "children": []
     },
     {
+        "name": "DƯỢC PHẨM",
+        "url": null,
+        "icon": null,
+        "can": null,
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Thông tư Hoạt chất",
+        "url": "\/admin\/pharma\/tthc",
+        "icon": null,
+        "can": "view_staff",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Tra cứu thuốc",
+        "url": "\/admin\/pharma\/tracuu",
+        "icon": null,
+        "can": "view_staff",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Hồ sơ sản phẩm",
+        "url": "\/admin\/pharma\/hssp",
+        "icon": null,
+        "can": "view_staff",
+        "is_active": true,
+        "children": []
+    },
+    {
+        "name": "Danh mục thuốc",
+        "url": null,
+        "icon": "shopping-bag",
+        "can": "view_product",
+        "is_active": true,
+        "children": [
+            {
+                "name": "Thuốc tân dược",
+                "url": "\/admin\/pharma\/tanduoc",
+                "icon": null,
+                "can": "view_product",
+                "is_active": true,
+                "children": []
+            },
+            {
+                "name": "Thuốc đông y",
+                "url": "\/admin\/pharma\/dongy",
+                "icon": null,
+                "can": "view_category",
+                "is_active": true,
+                "children": []
+            }
+        ]
+    },
+    {
         "name": "QUẢN LÝ BÁN HÀNG",
         "url": null,
         "icon": null,
