@@ -1,5 +1,5 @@
 <?php
- 
+
 namespace Modules;
 
 use Illuminate\Support\ServiceProvider;
@@ -19,7 +19,7 @@ class ModuleServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-       
+
         $modules = $this->getModules();
         foreach ($modules as $module) {
             $this->registerModule($module);
@@ -32,7 +32,7 @@ class ModuleServiceProvider extends ServiceProvider
     private function getModules(): array
     {
         // Lấy danh sách các folder trong thư mục Modules
-        $path = __DIR__;
+        $path = base_path('Modules');
         return array_map('basename', File::directories($path));
     }
 
