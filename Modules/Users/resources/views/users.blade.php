@@ -3,7 +3,7 @@
 @section('title', 'TEMPLATE HTML BOOSTRAP 5')
 
 @section('content')
-    @livewire('users.user-list')
+    {{-- @livewire('users.user-list') --}}
 @endsection
 
 @push('css')
