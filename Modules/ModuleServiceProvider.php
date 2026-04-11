@@ -2,16 +2,32 @@
 
 namespace Modules;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 class ModuleServiceProvider extends ServiceProvider
 {
+    private const MODULE_TYPES = ['shell', 'domain', 'support'];
+
+    private const BOOT_ORDER = [
+        'shell' => 0,
+        'support' => 1,
+        'domain' => 2,
+    ];
+
+    private const TYPE_FALLBACKS = [
+        'Admin' => 'shell',
+        'Auth' => 'support',
+        'Role' => 'support',
+        'Template' => 'support',
+    ];
+
     public function register(): void
     {
         //
@@ -19,146 +35,246 @@ class ModuleServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $modules = $this->discoverModules();
 
-        $modules = $this->getModules();
-        foreach ($modules as $module) {
-            $this->registerModule($module);
-        }
-        Gate::before(function ($user, $ability) {
+        config([
+            'modules.registry' => $modules->mapWithKeys(fn (array $module) => [
+                $module['name'] => [
+                    'name' => $module['name'],
+                    'type' => $module['type'],
+                    'enabled' => $module['enabled'],
+                    'path' => $module['path'],
+                    'source' => $module['source'],
+                ],
+            ])->all(),
+        ]);
+
+        $modules
+            ->filter(fn (array $module) => $module['enabled'])
+            ->each(fn (array $module) => $this->registerModule($module));
+
+        Gate::before(function ($user) {
             return $user->hasRole('Super Admin') ? true : null;
         });
     }
 
-    private function getModules(): array
+    private function discoverModules(): Collection
     {
-        // Lấy danh sách các folder trong thư mục Modules
         $path = base_path('Modules');
-        return array_map('basename', File::directories($path));
+
+        if (! File::exists($path)) {
+            return collect();
+        }
+
+        return collect(File::directories($path))
+            ->map(fn (string $modulePath) => $this->resolveModuleManifest($modulePath))
+            ->sort(function (array $left, array $right) {
+                $leftOrder = self::BOOT_ORDER[$left['type']] ?? PHP_INT_MAX;
+                $rightOrder = self::BOOT_ORDER[$right['type']] ?? PHP_INT_MAX;
+
+                if ($leftOrder === $rightOrder) {
+                    return strcmp($left['name'], $right['name']);
+                }
+
+                return $leftOrder <=> $rightOrder;
+            })
+            ->values();
     }
 
-    private function registerModule($module)
+    private function resolveModuleManifest(string $modulePath): array
     {
-        $modulePath = __DIR__ . "/{$module}";
-        $moduleNameLower = strtolower($module); // vd: admin
+        $module = basename($modulePath);
+        $manifestPath = $this->modulePath($modulePath, ['config/module.php', 'Config/module.php']);
+        $manifest = [];
+        $source = 'fallback';
 
-        // --- 1. CONFIG (Load trước để các phần khác có thể dùng config) ---
-        // Hỗ trợ cả folder 'Config' và 'config'
-        $configPath = File::exists($modulePath . '/Config') ? $modulePath . '/Config' : $modulePath . '/config';
+        if ($manifestPath !== null) {
+            $loaded = require $manifestPath;
 
-        if (File::exists($configPath)) {
-            foreach (File::files($configPath) as $file) {
-                $configName = pathinfo($file->getFilename(), PATHINFO_FILENAME);
-                $this->mergeConfigFrom(
-                    $file->getPathname(),
-                    $moduleNameLower . '.' . $configName
-                );
+            if (is_array($loaded)) {
+                $manifest = $loaded;
+                $source = 'manifest';
             }
         }
 
-        // --- 2. ROUTES ---
-        if (File::exists($modulePath . '/Routes/web.php')) {
-            $this->loadRoutesFrom($modulePath . '/Routes/web.php');
-        } elseif (File::exists($modulePath . '/routes/web.php')) {
-            $this->loadRoutesFrom($modulePath . '/routes/web.php');
+        $type = $manifest['type'] ?? $this->inferModuleType($module);
+        if (! in_array($type, self::MODULE_TYPES, true)) {
+            $type = $this->inferModuleType($module);
+            $source = 'fallback';
         }
 
-        $apiRoutePath = File::exists($modulePath . '/Routes/api.php') ? $modulePath . '/Routes/api.php' : (File::exists($modulePath . '/routes/api.php') ? $modulePath . '/routes/api.php' : null);
+        return [
+            'name' => $module,
+            'path' => $modulePath,
+            'lower_name' => Str::lower($module),
+            'type' => $type,
+            'enabled' => (bool) ($manifest['enabled'] ?? true),
+            'source' => $source,
+        ];
+    }
 
-        if ($apiRoutePath) {
+    private function inferModuleType(string $module): string
+    {
+        return self::TYPE_FALLBACKS[$module] ?? 'domain';
+    }
+
+    private function registerModule(array $module): void
+    {
+        $this->registerConfig($module);
+        $this->registerRoutes($module);
+        $this->registerResources($module);
+        $this->registerHelpers($module);
+        $this->registerMigrations($module);
+        $this->registerLivewireComponents($module);
+        $this->registerBladeComponents($module);
+    }
+
+    private function registerConfig(array $module): void
+    {
+        $configPath = $this->modulePath($module['path'], ['config', 'Config']);
+
+        if ($configPath === null) {
+            return;
+        }
+
+        foreach (File::files($configPath) as $file) {
+            $configName = pathinfo($file->getFilename(), PATHINFO_FILENAME);
+
+            $this->mergeConfigFrom(
+                $file->getPathname(),
+                $module['lower_name'].'.'.$configName
+            );
+        }
+    }
+
+    private function registerRoutes(array $module): void
+    {
+        $routesPath = $this->modulePath($module['path'], ['routes', 'Routes']);
+
+        if ($routesPath === null) {
+            return;
+        }
+
+        $webRoutePath = $this->modulePath($routesPath, ['web.php']);
+        if ($webRoutePath !== null) {
+            $this->loadRoutesFrom($webRoutePath);
+        }
+
+        $apiRoutePath = $this->modulePath($routesPath, ['api.php']);
+        if ($apiRoutePath !== null) {
             Route::prefix('api')
                 ->middleware('api')
                 ->group(function () use ($apiRoutePath) {
                     require $apiRoutePath;
                 });
         }
+    }
 
-        // --- 3. VIEWS & TRANSLATIONS ---
-        // Xác định folder Resources (Hỗ trợ cả viết hoa/thường)
-        $resourcePath = File::exists($modulePath . '/Resources') ? $modulePath . '/Resources' : $modulePath . '/resources';
+    private function registerResources(array $module): void
+    {
+        $resourcePath = $this->modulePath($module['path'], ['resources', 'Resources']);
 
-        // Views
-        if (File::exists($resourcePath . '/views')) {
-            $this->loadViewsFrom($resourcePath . '/views', $module);
+        if ($resourcePath === null) {
+            return;
         }
 
-        // Translations
-        if (File::exists($resourcePath . '/lang')) {
-            $this->loadTranslationsFrom($resourcePath . '/lang', $module);
-            $this->loadJSONTranslationsFrom($resourcePath . '/lang');
+        $viewsPath = $this->modulePath($resourcePath, ['views']);
+        if ($viewsPath !== null) {
+            $this->loadViewsFrom($viewsPath, $module['name']);
         }
 
-        // --- 4. HELPERS ---
-        if (File::exists($modulePath . '/Helpers')) {
-            foreach (File::allFiles($modulePath . '/Helpers') as $file) {
-                require_once $file->getPathname();
+        $langPath = $this->modulePath($resourcePath, ['lang']);
+        if ($langPath !== null) {
+            $this->loadTranslationsFrom($langPath, $module['name']);
+            $this->loadJSONTranslationsFrom($langPath);
+        }
+    }
+
+    private function registerHelpers(array $module): void
+    {
+        $helpersPath = $this->modulePath($module['path'], ['Helpers']);
+
+        if ($helpersPath === null) {
+            return;
+        }
+
+        foreach (File::allFiles($helpersPath) as $file) {
+            require_once $file->getPathname();
+        }
+    }
+
+    private function registerMigrations(array $module): void
+    {
+        $migrationsPath = $this->modulePath($module['path'], [
+            'database/migrations',
+            'Database/Migrations',
+        ]);
+
+        if ($migrationsPath !== null) {
+            $this->loadMigrationsFrom($migrationsPath);
+        }
+    }
+
+    private function registerLivewireComponents(array $module): void
+    {
+        $livewirePath = $this->modulePath($module['path'], ['Livewire']);
+
+        if ($livewirePath === null) {
+            return;
+        }
+
+        $namespacePrefix = 'Modules\\'.$module['name'].'\\Livewire';
+
+        foreach (File::allFiles($livewirePath) as $file) {
+            $relativePath = str_replace($livewirePath, '', $file->getPathname());
+            $relativePath = str_replace('.php', '', $relativePath);
+            $classPath = str_replace(DIRECTORY_SEPARATOR, '\\', $relativePath);
+            $fullClass = $namespacePrefix.$classPath;
+
+            if (! class_exists($fullClass)) {
+                continue;
+            }
+
+            $alias = collect(explode(DIRECTORY_SEPARATOR, trim($relativePath, DIRECTORY_SEPARATOR)))
+                ->map(fn (string $part) => Str::kebab($part))
+                ->implode('.');
+
+            Livewire::component($module['lower_name'].'.'.$alias, $fullClass);
+        }
+    }
+
+    private function registerBladeComponents(array $module): void
+    {
+        $classComponentPath = $this->modulePath($module['path'], ['View/Components', 'Http/Components']);
+
+        if ($classComponentPath !== null) {
+            $namespace = str_contains($classComponentPath, 'Http'.DIRECTORY_SEPARATOR.'Components')
+                ? 'Modules\\'.$module['name'].'\\Http\\Components'
+                : 'Modules\\'.$module['name'].'\\View\\Components';
+
+            Blade::componentNamespace($namespace, $module['lower_name']);
+        }
+
+        $resourcePath = $this->modulePath($module['path'], ['resources', 'Resources']);
+        $anonymousComponentPath = $resourcePath !== null
+            ? $this->modulePath($resourcePath, ['views/components'])
+            : null;
+
+        if ($anonymousComponentPath !== null) {
+            Blade::anonymousComponentPath($anonymousComponentPath, $module['lower_name']);
+        }
+    }
+
+    private function modulePath(string $basePath, array $segments): ?string
+    {
+        foreach ($segments as $segment) {
+            $path = rtrim($basePath, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $segment);
+
+            if (File::exists($path)) {
+                return $path;
             }
         }
 
-        // --- 5. MIGRATIONS ---
-        if (File::exists($modulePath . '/Database/Migrations')) {
-            $this->loadMigrationsFrom($modulePath . '/Database/Migrations');
-        } elseif (File::exists($modulePath . '/database/migrations')) {
-            $this->loadMigrationsFrom($modulePath . '/database/migrations');
-        }
-
-        // --- 6. LIVEWIRE COMPONENTS ---
-        $livewirePath = $modulePath . '/Livewire'; // Giả sử namespace là Modules\Admin\Livewire
-
-        if (File::exists($livewirePath)) {
-            $namespacePrefix = "Modules\\{$module}\\Livewire";
-
-            foreach (File::allFiles($livewirePath) as $file) {
-                $relativePath = str_replace($livewirePath, '', $file->getPathname());
-                $relativePath = str_replace('.php', '', $relativePath);
-
-                // Chuyển đường dẫn thành namespace: /Products/ProductTable -> \Products\ProductTable
-                $classPath = str_replace(DIRECTORY_SEPARATOR, '\\', $relativePath);
-                $fullClass = $namespacePrefix . $classPath;
-
-                if (class_exists($fullClass)) {
-                    // Tạo alias: admin.products.product-table
-                    // Logic: Lấy tên module + path + tên file (kebab case)
-                    $aliasParts = explode(DIRECTORY_SEPARATOR, trim($relativePath, DIRECTORY_SEPARATOR));
-                    $alias = collect($aliasParts)
-                        ->map(fn($part) => Str::kebab($part))
-                        ->implode('.');
-
-                    $componentAlias = $moduleNameLower . '.' . $alias;
-
-                    // Đăng ký với Livewire
-                    Livewire::component($componentAlias, $fullClass);
-                }
-            }
-        }
-
-        // --- 7. BLADE COMPONENTS (Quan trọng) ---
-
-        // A. Class Based Components (Có file PHP xử lý)
-        // Đường dẫn chuẩn Laravel thường là View/Components, nhưng bạn dùng Http/Components thì giữ nguyên
-        $classComponentPath = $modulePath . '/View/Components';
-        if (!File::exists($classComponentPath)) {
-             $classComponentPath = $modulePath . '/Http/Components';
-        }
-
-        if (File::exists($classComponentPath)) {
-            // Namespace này phải khớp với PSR-4 trong composer.json hoặc folder structure
-            // Ví dụ: Modules\Admin\View\Components
-            $namespace = "Modules\\{$module}\\View\\Components";
-            if(str_contains($classComponentPath, 'Http')) {
-                 $namespace = "Modules\\{$module}\\Http\\Components";
-            }
-
-            Blade::componentNamespace($namespace, $moduleNameLower);
-        }
-
-        // B. Anonymous Components (Chỉ có file view .blade.php)
-        // Đường dẫn: Modules/Admin/Resources/views/components
-        $anonymousComponentPath = $resourcePath . '/views/components';
-
-        if (File::exists($anonymousComponentPath)) {
-            // Dòng này giúp bạn dùng: <x-admin-ckeditor />
-            // Nó tự tìm file ckeditor.blade.php trong folder components của module
-            Blade::anonymousComponentPath($anonymousComponentPath, $moduleNameLower);
-        }
+        return null;
     }
 }
